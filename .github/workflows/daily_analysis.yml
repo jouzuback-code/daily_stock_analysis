@@ -57,8 +57,16 @@ jobs:
           mkdir -p data logs reports
 
       - name: Jalankan Analisis
+        env:
+        # Ini supaya skripnya bisa baca API Key & Model dari Secret/Variable
+          OPENROUTER_API_KEY: ${{ secrets.LLM_API_KEY }}
+          TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
+          LLM_API_BASE: ${{ vars.LLM_API_BASE }}
+          LLM_MODEL: ${{ vars.LLM_MODEL }}
         run: |
-          python main.py --tickers "${{ env.TICKER_LIST }}" --model "${{ env.LLM_MODEL }}"
+          # Perintahnya diubah dari --tickers menjadi --stocks
+          # Hapus bagian --model karena dia baca dari 'env' di atas
+          python main.py --stocks "${{ vars.TICKER_LIST }}" --market-review
       
       - name: 执行股票分析
         env:
@@ -306,10 +314,10 @@ jobs:
             tail -30 logs/stock_analysis_*.log 2>/dev/null || echo "无日志"
           fi
 
-      - name: Kirim Notifikasi Discord # <--- INI NOMOR 3 (TARUH DI SINI)
+      - name: Kirim Notifikasi Discord
         if: always()
         run: |
           curl -H "Content-Type: application/json" \
                -X POST \
-               -d "{\"content\": \"🚀 **Analisis Market Selesai!**\nAset: ${{ env.TICKER_LIST }}\nModel: ${{ env.LLM_MODEL }}\"}" \
+               -d "{\"content\": \"🚀 **Analisis Market Selesai!**\nAset: ${{ vars.TICKER_LIST }}\nModel: ${{ vars.LLM_MODEL }}\nStatus: Periksa tab Actions untuk detail laporan.\"}" \
                ${{ secrets.DISCORD_WEBHOOK }}
