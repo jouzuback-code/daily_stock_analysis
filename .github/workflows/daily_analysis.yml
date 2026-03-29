@@ -55,6 +55,10 @@ jobs:
       - name: 创建必要目录
         run: |
           mkdir -p data logs reports
+
+      - name: Jalankan Analisis
+        run: |
+          python main.py --tickers "${{ env.TICKER_LIST }}" --model "${{ env.LLM_MODEL }}"
       
       - name: 执行股票分析
         env:
@@ -88,6 +92,13 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           ANTHROPIC_MODEL: ${{ vars.ANTHROPIC_MODEL || secrets.ANTHROPIC_MODEL || 'claude-3-5-sonnet-20241022' }}
 
+          OPENROUTER_API_KEY: ${{ secrets.LLM_API_KEY }}
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+
+          LLM_MODEL: ${{ vars.LLM_MODEL }}
+          LLM_API_BASE: ${{ vars.LLM_API_BASE }}
+          TICKER_LIST: ${{ vars.TICKER_LIST }}
+
           # ==========================================
           # 数据源
           # ==========================================
@@ -97,7 +108,7 @@ jobs:
           # 搜索服务
           # ==========================================
           BOCHA_API_KEYS: ${{ secrets.BOCHA_API_KEYS }}
-          TAVILY_API_KEYS: ${{ secrets.TAVILY_API_KEYS }}
+          TAVILY_API_KEYS: ${{ secrets.TAVILY_API_KEY }}
           SERPAPI_API_KEYS: ${{ secrets.SERPAPI_API_KEYS }}
           MINIMAX_API_KEYS: ${{ secrets.MINIMAX_API_KEYS }}
           BRAVE_API_KEYS: ${{ secrets.BRAVE_API_KEYS }}
@@ -213,6 +224,7 @@ jobs:
           echo "=========================================="
           echo "【AI 配置】"
           echo "  LiteLLM: $([ -n "$LITELLM_CONFIG" ] || [ -n "$LITELLM_API_KEY" ] || [ -n "$LITELLM_MODEL" ] && echo '✅ 已配置' || echo '❌ 未配置')"
+          echo "  OpenRouter API Key: $([ -n "$OPENROUTER_API_KEY" ] || [ -n "$" ] || [ -n "$OPENROUTER_API_KEY" ] && echo '✅ 已配置' || echo '❌ 未配置')"
           echo "  Gemini API Key: $([ -n "$GEMINI_API_KEY" ] && echo '✅ 已配置' || echo '❌ 未配置')"
           echo "  DeepSeek Key:   $([ -n "$DEEPSEEK_API_KEY" ] && echo '✅ 已配置' || echo '⚪ 未配置')"
           echo "  AIHubMix Key:   $([ -n "$AIHUBMIX_KEY" ] && echo '✅ 已配置' || echo '⚪ 未配置')"
@@ -293,3 +305,11 @@ jobs:
             echo "📜 最近日志（最后 30 行）:"
             tail -30 logs/stock_analysis_*.log 2>/dev/null || echo "无日志"
           fi
+
+      - name: Kirim Notifikasi Discord # <--- INI NOMOR 3 (TARUH DI SINI)
+        if: always()
+        run: |
+          curl -H "Content-Type: application/json" \
+               -X POST \
+               -d "{\"content\": \"🚀 **Analisis Market Selesai!**\nAset: ${{ env.TICKER_LIST }}\nModel: ${{ env.LLM_MODEL }}\"}" \
+               ${{ secrets.DISCORD_WEBHOOK }}
