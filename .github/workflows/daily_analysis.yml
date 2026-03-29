@@ -58,15 +58,15 @@ jobs:
 
       - name: Jalankan Analisis
         env:
-        # Ini supaya skripnya bisa baca API Key & Model dari Secret/Variable
+          # Gunakan nama variabel yang diminta skrip (LITELLM_MODEL)
+          LITELLM_MODEL: ${{ vars.LLM_MODEL }}
           OPENROUTER_API_KEY: ${{ secrets.LLM_API_KEY }}
           TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
           LLM_API_BASE: ${{ vars.LLM_API_BASE }}
-          LLM_MODEL: ${{ vars.LLM_MODEL }}
         run: |
-          # Perintahnya diubah dari --tickers menjadi --stocks
-          # Hapus bagian --model karena dia baca dari 'env' di atas
-          python main.py --stocks "${{ vars.TICKER_LIST }}" --market-review
+          # Tambahkan --force-run agar tetap jalan meski hari Minggu
+          # Gunakan --stocks untuk memasukkan list asetmu
+          python main.py --stocks "${{ vars.TICKER_LIST }}" --market-review --force-run
       
       - name: 执行股票分析
         env:
@@ -314,10 +314,43 @@ jobs:
             tail -30 logs/stock_analysis_*.log 2>/dev/null || echo "无日志"
           fi
 
-      - name: Kirim Notifikasi Discord
-        if: always()
+      - name: Cari File Laporan
+        id: find_report
         run: |
-          curl -H "Content-Type: application/json" \
-               -X POST \
-               -d "{\"content\": \"🚀 **Analisis Market Selesai!**\nAset: ${{ vars.TICKER_LIST }}\nModel: ${{ vars.LLM_MODEL }}\nStatus: Periksa tab Actions untuk detail laporan.\"}" \
-               ${{ secrets.DISCORD_WEBHOOK }}
+          # Mencari file .md terbaru di folder output atau root
+          # Skrip ini biasanya simpan di folder 'output' atau 'reports'
+          REPORT_FILE=$(ls -t *.md | head -1) 
+          echo "REPORT_PATH=$REPORT_FILE" >> $GITHUB_ENV
+
+      - name: Kirim Laporan Langsung Baca (Chunking)
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        run: |
+          # Mencari file laporan terbaru
+          REPORT_FILE=$(ls -t *.md | head -1)
+          
+          # Jalankan skrip Python mini untuk membagi teks
+          python - <<EOF
+          import os, requests, time
+  
+          webhook_url = os.environ['DISCORD_WEBHOOK']
+          with open('$REPORT_FILE', 'r') as f:
+              content = f.read()
+  
+          # Discord limit itu 2000, kita ambil 1900 biar aman
+          limit = 1900
+          chunks = [content[i:i+limit] for i in range(0, len(content), limit)]
+  
+          print(f"Mengirim {len(chunks)} bagian ke Discord...")
+          
+          for i, chunk in enumerate(chunks):
+              # Kirim header di pesan pertama
+              if i == 0:
+                  msg = f"📊 **LAPORAN ANALISA MARKET**\n\n{chunk}"
+              else:
+                  msg = chunk
+              
+              requests.post(webhook_url, json={"content": msg})
+              time.sleep(1) # Jeda dikit biar gak kena limit Discord
+          EOF
+            
